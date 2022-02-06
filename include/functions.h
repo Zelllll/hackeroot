@@ -952,7 +952,7 @@ void Lights_PointSetColorAndRadius(LightInfo* info, u8 r, u8 g, u8 b, s16 radius
 void Lights_DirectionalSetInfo(LightInfo* info, s8 x, s8 y, s8 z, u8 r, u8 g, u8 b);
 void Lights_Reset(Lights* lights, u8 ambentR, u8 ambentG, u8 ambentB);
 void Lights_Draw(Lights* lights, GraphicsContext* gfxCtx);
-void Lights_BindAll(Lights* lights, LightNode* listHead, Vec3f* vec);
+void Lights_BindAll(Lights* lights, LightNode* listHead, Vec3f* vec, GlobalContext* globalCtx);
 void LightContext_Init(GlobalContext* globalCtx, LightContext* lightCtx);
 void LightContext_SetAmbientColor(LightContext* lightCtx, u8 r, u8 g, u8 b);
 void LightContext_SetFog(LightContext* lightCtx, u8 arg1, u8 arg2, u8 arg3, s16 numLights, s16 arg5);

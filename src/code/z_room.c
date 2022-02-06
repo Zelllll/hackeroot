@@ -53,6 +53,11 @@ void func_80095AB4(GlobalContext* globalCtx, Room* room, u32 flags) {
         gSPMatrix(POLY_XLU_DISP++, &gMtxClear, G_MTX_MODELVIEW | G_MTX_LOAD);
     }
 
+#ifdef USE_POS_LIGHTS
+    gSPSetGeometryMode(POLY_OPA_DISP++, G_LIGHTING_POSITIONAL);
+    gSPSetGeometryMode(POLY_XLU_DISP++, G_LIGHTING_POSITIONAL);
+#endif
+
     polygon0 = &room->mesh->polygon0;
     polygonDlist = SEGMENTED_TO_VIRTUAL(polygon0->start);
     for (i = 0; i < polygon0->num; i++) {
@@ -113,6 +118,11 @@ void func_80095D04(GlobalContext* globalCtx, Room* room, u32 flags) {
         func_80093D84(globalCtx->state.gfxCtx);
         gSPMatrix(POLY_XLU_DISP++, &gMtxClear, G_MTX_MODELVIEW | G_MTX_LOAD);
     }
+
+#ifdef USE_POS_LIGHTS
+    gSPSetGeometryMode(POLY_OPA_DISP++, G_LIGHTING_POSITIONAL);
+    gSPSetGeometryMode(POLY_XLU_DISP++, G_LIGHTING_POSITIONAL);
+#endif
 
     polygon2 = &room->mesh->polygon2;
     polygonDlist = SEGMENTED_TO_VIRTUAL(polygon2->start);

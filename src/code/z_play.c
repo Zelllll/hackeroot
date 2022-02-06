@@ -1198,7 +1198,10 @@ void Gameplay_Draw(GlobalContext* globalCtx) {
 
                 if ((HREG(80) != 10) || (HREG(90) & 8)) {
                     sp228 = LightContext_NewLights(&globalCtx->lightCtx, gfxCtx);
-                    Lights_BindAll(sp228, globalCtx->lightCtx.listHead, NULL);
+#ifdef USE_POS_LIGHTS
+                    sp228->enablePosLights = true;
+#endif
+                    Lights_BindAll(sp228, globalCtx->lightCtx.listHead, NULL, globalCtx);
                     Lights_Draw(sp228, gfxCtx);
                 }
 

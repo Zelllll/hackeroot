@@ -2,9 +2,9 @@
 #define Z64LIGHT_H
 
 #include "ultra64.h"
-#include "ultra64/gbi.h"
 #include "z64math.h"
 #include "color.h"
+#include "config/config_lighting.h"
 
 typedef struct {
     /* 0x0 */ s16 x;
@@ -34,6 +34,9 @@ typedef struct {
 
 typedef struct Lights {
     /* 0x00 */ u8 numLights;
+#ifdef USE_POS_LIGHTS
+    /* 0x01 */ u8 enablePosLights;
+#endif
     /* 0x08 */ Lightsn l;
 } Lights; // size = 0x80
 

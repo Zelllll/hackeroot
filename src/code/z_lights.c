@@ -56,7 +56,7 @@ void Lights_Reset(Lights* lights, u8 ambentR, u8 ambentG, u8 ambentB) {
  * Draws every light in the provided Lights group
  */
 void Lights_Draw(Lights* lights, GraphicsContext* gfxCtx) {
-    Light* light;
+    PosLight* light;
     s32 i;
 
     OPEN_DISPS(gfxCtx, "../z_lights.c", 339);
@@ -65,7 +65,7 @@ void Lights_Draw(Lights* lights, GraphicsContext* gfxCtx) {
     gSPNumLights(POLY_XLU_DISP++, lights->numLights);
 
     i = 0;
-    light = &lights->l.l[0];
+    light = (PosLight*)&lights->l.l[0];
 
     while (i < lights->numLights) {
         i++;
@@ -83,21 +83,22 @@ void Lights_Draw(Lights* lights, GraphicsContext* gfxCtx) {
     CLOSE_DISPS(gfxCtx, "../z_lights.c", 352);
 }
 
-Light* Lights_FindSlot(Lights* lights) {
+PosLight* Lights_FindSlot(Lights* lights) {
     if (lights->numLights >= 7) {
         return NULL;
     } else {
-        return &lights->l.l[lights->numLights++];
+        return (PosLight*)&lights->l.l[lights->numLights++];
     }
 }
 
+// old, non-microcode light binding
 void Lights_BindPoint(Lights* lights, LightParams* params, Vec3f* vec) {
     f32 xDiff;
     f32 yDiff;
     f32 zDiff;
     f32 posDiff;
     f32 scale;
-    Light* light;
+    PosLight* light;
 
     if (vec != NULL) {
         xDiff = params->point.x - vec->x;
@@ -130,7 +131,7 @@ void Lights_BindPoint(Lights* lights, LightParams* params, Vec3f* vec) {
 }
 
 void Lights_BindDirectional(Lights* lights, LightParams* params, Vec3f* vec) {
-    Light* light = Lights_FindSlot(lights);
+    PosLight* light = Lights_FindSlot(lights);
 
     if (light != NULL) {
         light->l.col[0] = light->l.colc[0] = params->dir.color[0];
@@ -139,8 +140,55 @@ void Lights_BindDirectional(Lights* lights, LightParams* params, Vec3f* vec) {
         light->l.dir[0] = params->dir.x;
         light->l.dir[1] = params->dir.y;
         light->l.dir[2] = params->dir.z;
+#ifdef USE_POS_LIGHTS
+        light->p.kc = 0;
+#endif
     }
 }
+
+#ifdef USE_POS_LIGHTS
+void Lights_BindPositional(Lights* lights, LightParams* params, GlobalContext* globalCtx) {
+    PosLight* light;
+    f32 radiusF = params->point.radius;
+    Vec3f posF;
+    Vec3f adjustedPos;
+
+    if (radiusF > 0) {
+        posF.x = params->point.x;
+        posF.y = params->point.y;
+        posF.z = params->point.z;
+        SkinMatrix_Vec3fMtxFMultXYZ(&globalCtx->viewProjectionMtxF, &posF, &adjustedPos);
+
+        if ((adjustedPos.z > -radiusF) && (600 + radiusF > adjustedPos.z) && (400 > fabsf(adjustedPos.x) - radiusF) &&
+            (400 > fabsf(adjustedPos.y) - radiusF)) {
+            light = Lights_FindSlot(lights);
+            if (light != NULL) {
+                radiusF = 4500000.0f / (radiusF * radiusF);
+                if (radiusF > 255) {
+                    radiusF = 255;
+                } else if (20 > radiusF) {
+                    radiusF = 20;
+                }
+
+                light->p.col[0] = params->point.color[0];
+                light->p.colc[0] = light->p.col[0];
+                light->p.col[1] = params->point.color[1];
+                light->p.colc[1] = light->p.col[1];
+                light->p.col[2] = params->point.color[2];
+                light->p.colc[2] = light->p.col[2];
+
+                light->p.pos[0] = params->point.x;
+                light->p.pos[1] = params->point.y;
+                light->p.pos[2] = params->point.z;
+
+                light->p.kc = 0x8;
+                light->p.kl = 0xFF;
+                light->p.kq = (s32)radiusF;
+            }
+        }
+    }
+}
+#endif
 
 /**
  * For every light in a provided list, try to find a free slot in the provided Lights group and bind
@@ -150,13 +198,29 @@ void Lights_BindDirectional(Lights* lights, LightParams* params, Vec3f* vec) {
  * Note: Lights in a given list can only be binded to however many free slots are
  * available in the Lights group. This is at most 7 slots for a new group, but could be less.
  */
-void Lights_BindAll(Lights* lights, LightNode* listHead, Vec3f* vec) {
-    LightsBindFunc bindFuncs[] = { Lights_BindPoint, Lights_BindDirectional, Lights_BindPoint };
-    LightInfo* info;
-
+void Lights_BindAll(Lights* lights, LightNode* listHead, Vec3f* vec, GlobalContext* globalCtx) {
     while (listHead != NULL) {
-        info = listHead->info;
-        bindFuncs[info->type](lights, &info->params, vec);
+        LightInfo* info = listHead->info;
+
+        switch (info->type) {
+            case LIGHT_POINT_NOGLOW:
+            case LIGHT_POINT_GLOW:
+#ifdef USE_POS_LIGHTS
+                if (vec == NULL && lights->enablePosLights) {
+                    Lights_BindPositional(lights, &info->params, globalCtx);
+                } else {
+                    Lights_BindPoint(lights, &info->params, vec);
+                }
+#else
+                Lights_BindPoint(lights, &info->params, vec);
+#endif
+                break;
+            case LIGHT_DIRECTIONAL:
+                Lights_BindDirectional(lights, &info->params, vec);
+                break;
+            default:
+                break;
+        }
         listHead = listHead->next;
     }
 }
@@ -288,6 +352,9 @@ Lights* Lights_NewAndDraw(GraphicsContext* gfxCtx, u8 ambientR, u8 ambientG, u8 
     lights->l.a.l.col[1] = lights->l.a.l.colc[1] = ambientG;
     lights->l.a.l.col[2] = lights->l.a.l.colc[2] = ambientB;
     lights->numLights = numLights;
+#ifdef USE_POS_LIGHTS
+    lights->enablePosLights = false;
+#endif
 
     for (i = 0; i < numLights; i++) {
         lights->l.l[i].l.col[0] = lights->l.l[i].l.colc[0] = r;
@@ -312,47 +379,47 @@ Lights* Lights_New(GraphicsContext* gfxCtx, u8 ambientR, u8 ambientG, u8 ambient
     lights->l.a.l.col[1] = lights->l.a.l.colc[1] = ambientG;
     lights->l.a.l.col[2] = lights->l.a.l.colc[2] = ambientB;
     lights->numLights = 0;
+#ifdef USE_POS_LIGHTS
+    lights->enablePosLights = false;
+#endif
 
     return lights;
 }
 
+s32 Lights_GetZDepth(s32 x, s32 y) {
+    return func_8006F0A0((gZBuffer == NULL) ? 0 : *((u16*)gZBuffer + x + (y * gScreenWidth)) << 2) >> 3;
+}
+
 void Lights_GlowCheck(GlobalContext* globalCtx) {
-    LightNode* node;
-    LightPoint* params;
-    Vec3f pos;
-    Vec3f multDest;
-    f32 cappedInvWDest;
-    f32 wX;
-    f32 wY;
-    s32 wZ;
-    s32 zBuf;
+    LightNode* light = globalCtx->lightCtx.listHead;
 
-    node = globalCtx->lightCtx.listHead;
+    while (light != NULL) {
+        LightPoint* params = (LightPoint*)&light->info->params;
 
-    while (node != NULL) {
-        params = &node->info->params.point;
+        if (light->info->type == LIGHT_POINT_GLOW) {
+            Vec3f pos;
+            Vec3f multDest;
+            f32 wDest;
 
-        if (node->info->type == LIGHT_POINT_GLOW) {
             pos.x = params->x;
             pos.y = params->y;
             pos.z = params->z;
-            Actor_ProjectPos(globalCtx, &pos, &multDest, &cappedInvWDest);
+            Actor_ProjectPos(globalCtx, &pos, &multDest, &wDest);
+
             params->drawGlow = false;
-            wX = multDest.x * cappedInvWDest;
-            wY = multDest.y * cappedInvWDest;
 
-            if ((multDest.z > 1.0f) && (fabsf(wX) < 1.0f) && (fabsf(wY) < 1.0f)) {
-                wZ = (s32)((multDest.z * cappedInvWDest) * 16352.0f) + 16352;
-                zBuf = gZBuffer[(s32)((wY * -120.0f) + 120.0f)][(s32)((wX * 160.0f) + 160.0f)] * 4;
-                if (1) {}
-                if (1) {}
+            if ((multDest.z > 1) && (fabsf(multDest.x * wDest) < 1) && (fabsf(multDest.y * wDest) < 1)) {
+                s32 wX = multDest.x * wDest * (SCREEN_WIDTH / 2) + (SCREEN_WIDTH / 2);
+                s32 wY = multDest.y * wDest * -(SCREEN_HEIGHT / 2) + (SCREEN_HEIGHT / 2);
+                s32 wZ = (s32)((multDest.z * wDest) * 16352) + 16352;
 
-                if (wZ < (func_8006F0A0(zBuf) >> 3)) {
+                if (wZ < Lights_GetZDepth(wX, wY)) {
                     params->drawGlow = true;
                 }
             }
         }
-        node = node->next;
+
+        light = light->next;
     }
 }
 

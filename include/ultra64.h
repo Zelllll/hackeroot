@@ -25,6 +25,7 @@
 #include "ultra64/controller.h"
 #include "ultra64/printf.h"
 #include "ultra64/mbi.h"
+#include "ultra64/gbi-poslight.h"
 #include "ultra64/pfs.h"
 #include "ultra64/motor.h"
 #include "ultra64/r4300.h"
