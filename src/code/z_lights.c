@@ -83,22 +83,22 @@ void Lights_Draw(Lights* lights, GraphicsContext* gfxCtx) {
     CLOSE_DISPS(gfxCtx, "../z_lights.c", 352);
 }
 
-PosLight* Lights_FindSlot(Lights* lights) {
+Light* Lights_FindSlot(Lights* lights) {
     if (lights->numLights >= 7) {
         return NULL;
     } else {
-        return (PosLight*)&lights->l.l[lights->numLights++];
+        return &lights->l.l[lights->numLights++];
     }
 }
 
-// old, non-microcode light binding
+// old point light binding function from OoT, does not use microcode point lights
 void Lights_BindPoint(Lights* lights, LightParams* params, Vec3f* vec) {
     f32 xDiff;
     f32 yDiff;
     f32 zDiff;
     f32 posDiff;
     f32 scale;
-    PosLight* light;
+    Light* light;
 
     if (vec != NULL) {
         xDiff = params->point.x - vec->x;
@@ -131,7 +131,7 @@ void Lights_BindPoint(Lights* lights, LightParams* params, Vec3f* vec) {
 }
 
 void Lights_BindDirectional(Lights* lights, LightParams* params, Vec3f* vec) {
-    PosLight* light = Lights_FindSlot(lights);
+    PosLight* light = (PosLight*)Lights_FindSlot(lights);
 
     if (light != NULL) {
         light->l.col[0] = light->l.colc[0] = params->dir.color[0];
@@ -147,7 +147,7 @@ void Lights_BindDirectional(Lights* lights, LightParams* params, Vec3f* vec) {
 }
 
 #ifdef USE_POS_LIGHTS
-void Lights_BindPositional(Lights* lights, LightParams* params, GlobalContext* globalCtx) {
+void Lights_BindPointNew(Lights* lights, LightParams* params, GlobalContext* globalCtx) {
     PosLight* light;
     f32 radiusF = params->point.radius;
     Vec3f posF;
@@ -161,7 +161,7 @@ void Lights_BindPositional(Lights* lights, LightParams* params, GlobalContext* g
 
         if ((adjustedPos.z > -radiusF) && (600 + radiusF > adjustedPos.z) && (400 > fabsf(adjustedPos.x) - radiusF) &&
             (400 > fabsf(adjustedPos.y) - radiusF)) {
-            light = Lights_FindSlot(lights);
+            light = (PosLight*)Lights_FindSlot(lights);
             if (light != NULL) {
                 radiusF = 4500000.0f / (radiusF * radiusF);
                 if (radiusF > 255) {
@@ -207,7 +207,7 @@ void Lights_BindAll(Lights* lights, LightNode* listHead, Vec3f* vec, GlobalConte
             case LIGHT_POINT_GLOW:
 #ifdef USE_POS_LIGHTS
                 if (vec == NULL && lights->enablePosLights) {
-                    Lights_BindPositional(lights, &info->params, globalCtx);
+                    Lights_BindPointNew(lights, &info->params, globalCtx);
                 } else {
                     Lights_BindPoint(lights, &info->params, vec);
                 }
