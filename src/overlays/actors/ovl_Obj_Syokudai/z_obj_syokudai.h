@@ -16,4 +16,13 @@ typedef struct ObjSyokudai {
     /* 0x01EC */ LightInfo lightInfo;
 } ObjSyokudai; // size = 0x01FC
 
+#include "config/config_lighting.h"
+
+#ifdef USE_POS_LIGHTS
+// MM has a larger radius for torch flames
+#define OBJ_SYOKUDAI_LIGHT_RADIUS_MAX 250
+#else
+#define OBJ_SYOKUDAI_LIGHT_RADIUS_MAX 200
+#endif
+
 #endif
